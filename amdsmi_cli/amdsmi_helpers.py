@@ -707,43 +707,127 @@ class AMDSMIHelpers():
         return 1
 
 
-    def get_gpu_id_from_device_handle(self, input_device_handle):
+    def get_gpu_id_from_device_handle(self, input_device_handle, cached_map=None):
         """Get the gpu index from the device_handle.
-        amdsmi_get_processor_handles() returns the list of device_handles in order of gpu_index
+        
+        Performance optimized with optional O(1) cached lookup.
+        Falls back to O(N) search if cache is not provided (backwards compatible).
+        
+        Args:
+            input_device_handle: Device handle to look up
+            cached_map (dict, optional): Pre-built handle.value -> gpu_id mapping for O(1) lookup.
+                                         If None, performs O(N) search with C library call.
+        
+        Returns:
+            int: GPU ID (0-indexed)
+        
+        Raises:
+            AmdSmiParameterException: If handle is not found in either cache or device list
+        
+        Note:
+            amdsmi_get_processor_handles() returns the list of device_handles in order of gpu_index
         """
+        # Try cached O(1) lookup first if available
+        if cached_map is not None:
+            gpu_id = cached_map.get(input_device_handle.value)
+            if gpu_id is not None:
+                return gpu_id
+            # Handle not in cache - fall through to compatibility search or raise error
+        
+        # Fallback: Original O(N) search with C library call (backwards compatible)
         device_handles = amdsmi_interface.amdsmi_get_processor_handles()
         for gpu_index, device_handle in enumerate(device_handles):
             if input_device_handle.value == device_handle.value:
                 return gpu_index
-        raise amdsmi_exception.AmdSmiParameterException(input_device_handle,
-                                                        amdsmi_interface.amdsmi_wrapper.amdsmi_processor_handle,
-                                                        "Unable to find gpu ID from device_handle")
+        
+        # Handle not found in either cache or device list
+        raise amdsmi_exception.AmdSmiParameterException(
+            input_device_handle,
+            amdsmi_interface.amdsmi_wrapper.amdsmi_processor_handle,
+            f"Unable to find GPU ID from device_handle (handle.value={input_device_handle.value})"
+        )
 
 
-    def get_cpu_id_from_device_handle(self, input_device_handle):
+    def get_cpu_id_from_device_handle(self, input_device_handle, cached_map=None):
         """Get the cpu index from the device_handle.
-        amdsmi_interface.amdsmi_get_cpusocket_handles() returns the list of device_handles in order of cpu_index
+        
+        Performance optimized with optional O(1) cached lookup.
+        Falls back to O(N) search if cache is not provided (backwards compatible).
+        
+        Args:
+            input_device_handle: Device handle to look up
+            cached_map (dict, optional): Pre-built handle.value -> cpu_id mapping for O(1) lookup.
+                                         If None, performs O(N) search with C library call.
+        
+        Returns:
+            int: CPU ID (0-indexed)
+        
+        Raises:
+            AmdSmiParameterException: If handle is not found in either cache or device list
+        
+        Note:
+            amdsmi_get_cpusocket_handles() returns the list of device_handles in order of cpu_index
         """
+        # Try cached O(1) lookup first if available
+        if cached_map is not None:
+            cpu_id = cached_map.get(input_device_handle.value)
+            if cpu_id is not None:
+                return cpu_id
+            # Handle not in cache - fall through to compatibility search or raise error
+        
+        # Fallback: Original O(N) search with C library call (backwards compatible)
         device_handles = amdsmi_interface.amdsmi_get_cpusocket_handles()
         for cpu_index, device_handle in enumerate(device_handles):
             if input_device_handle.value == device_handle.value:
                 return cpu_index
-        raise amdsmi_exception.AmdSmiParameterException(input_device_handle,
-                                                        amdsmi_interface.amdsmi_wrapper.amdsmi_processor_handle,
-                                                        "Unable to find cpu ID from device_handle")
+        
+        # Handle not found in either cache or device list
+        raise amdsmi_exception.AmdSmiParameterException(
+            input_device_handle,
+            amdsmi_interface.amdsmi_wrapper.amdsmi_processor_handle,
+            f"Unable to find CPU ID from device_handle (handle.value={input_device_handle.value})"
+        )
 
 
-    def get_core_id_from_device_handle(self, input_device_handle):
+    def get_core_id_from_device_handle(self, input_device_handle, cached_map=None):
         """Get the core index from the device_handle.
-        amdsmi_interface.amdsmi_get_cpusocket_handles() returns the list of device_handles in order of cpu_index
+        
+        Performance optimized with optional O(1) cached lookup.
+        Falls back to O(N) search if cache is not provided (backwards compatible).
+        
+        Args:
+            input_device_handle: Device handle to look up
+            cached_map (dict, optional): Pre-built handle.value -> core_id mapping for O(1) lookup.
+                                         If None, performs O(N) search with C library call.
+        
+        Returns:
+            int: CORE ID (0-indexed)
+        
+        Raises:
+            AmdSmiParameterException: If handle is not found in either cache or device list
+        
+        Note:
+            amdsmi_get_cpucore_handles() returns the list of device_handles in order of core_index
         """
+        # Try cached O(1) lookup first if available
+        if cached_map is not None:
+            core_id = cached_map.get(input_device_handle.value)
+            if core_id is not None:
+                return core_id
+            # Handle not in cache - fall through to compatibility search or raise error
+        
+        # Fallback: Original O(N) search with C library call (backwards compatible)
         device_handles = amdsmi_interface.amdsmi_get_cpucore_handles()
         for core_index, device_handle in enumerate(device_handles):
             if input_device_handle.value == device_handle.value:
                 return core_index
-        raise amdsmi_exception.AmdSmiParameterException(input_device_handle,
-                                                        amdsmi_interface.amdsmi_wrapper.amdsmi_processor_handle,
-                                                        "Unable to find core ID from device_handle")
+        
+        # Handle not found in either cache or device list
+        raise amdsmi_exception.AmdSmiParameterException(
+            input_device_handle,
+            amdsmi_interface.amdsmi_wrapper.amdsmi_processor_handle,
+            f"Unable to find CORE ID from device_handle (handle.value={input_device_handle.value})"
+        )
 
 
     def get_amd_gpu_bdfs(self):

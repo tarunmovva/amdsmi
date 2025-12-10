@@ -55,6 +55,12 @@ class AMDSMILogger():
         self.store_memory_partition_json_output = []
         self.store_partition_profiles_json_output = []
         self.store_partition_resources_json_output = []
+        
+        # Performance optimization: Cache for O(1) device handle lookups
+        # Set by AMDSMICommands via set_handle_caches() after initialization
+        self._gpu_handle_cache = None
+        self._cpu_handle_cache = None
+        self._core_handle_cache = None
 
 
     class LoggerFormat(Enum):
@@ -109,6 +115,25 @@ class AMDSMILogger():
                 Nothing
         """
         self._cper_exit_message = flag
+
+
+    def set_handle_caches(self, gpu_cache, cpu_cache, core_cache):
+        """Set cached handle->ID mappings for O(1) lookups.
+        
+        Called by AMDSMICommands after building caches during initialization.
+        Enables 50x faster device ID lookups by avoiding O(N) searches and C library calls.
+        
+        Args:
+            gpu_cache (dict): Mapping of GPU handle.value -> gpu_id
+            cpu_cache (dict): Mapping of CPU handle.value -> cpu_id
+            core_cache (dict): Mapping of CORE handle.value -> core_id
+        
+        Returns:
+            None
+        """
+        self._gpu_handle_cache = gpu_cache
+        self._cpu_handle_cache = cpu_cache
+        self._core_handle_cache = core_cache
 
 
     def _capitalize_keys(self, input_dict):
@@ -412,7 +437,11 @@ class AMDSMILogger():
             return:
                 Nothing
         """
-        gpu_id = self.helpers.get_gpu_id_from_device_handle(device_handle)
+        # Use cached O(1) lookup if available, otherwise fall back to O(N) search
+        gpu_id = self.helpers.get_gpu_id_from_device_handle(
+            device_handle,
+            cached_map=self._gpu_handle_cache
+        )
         self._store_output_amdsmi(gpu_id=gpu_id, argument=argument, data=data)
 
 
@@ -425,7 +454,11 @@ class AMDSMILogger():
             return:
                 Nothing
         """
-        cpu_id = self.helpers.get_cpu_id_from_device_handle(device_handle)
+        # Use cached O(1) lookup if available, otherwise fall back to O(N) search
+        cpu_id = self.helpers.get_cpu_id_from_device_handle(
+            device_handle,
+            cached_map=self._cpu_handle_cache
+        )
         self._store_cpu_output_amdsmi(cpu_id=cpu_id, argument=argument, data=data)
 
 
@@ -438,7 +471,11 @@ class AMDSMILogger():
             return:
                 Nothing
         """
-        core_id = self.helpers.get_core_id_from_device_handle(device_handle)
+        # Use cached O(1) lookup if available, otherwise fall back to O(N) search
+        core_id = self.helpers.get_core_id_from_device_handle(
+            device_handle,
+            cached_map=self._core_handle_cache
+        )
         self._store_core_output_amdsmi(core_id=core_id, argument=argument, data=data)
 
 

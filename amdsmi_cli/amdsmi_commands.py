@@ -57,6 +57,13 @@ class AMDSMICommands():
         self.stop = ''
         self.group_check_printed = False
 
+        # Performance optimization: Build device handle -> ID lookup maps
+        # These provide O(1) lookups instead of O(N) linear searches + C library calls
+        # Eliminates ~5,760 C library calls per minute in watch mode (8 GPUs, 12 metrics)
+        self._gpu_handle_to_id_map = {}
+        self._cpu_handle_to_id_map = {}
+        self._core_handle_to_id_map = {}
+
         amdsmi_init_flag = self.helpers.get_amdsmi_init_flag()
         logging.debug(f"AMDSMI Init Flag: {amdsmi_init_flag}")
         exit_flag = False
@@ -64,6 +71,11 @@ class AMDSMICommands():
         if self.helpers.is_amdgpu_initialized():
             try:
                 self.device_handles = amdsmi_interface.amdsmi_get_processor_handles()
+                
+                # Build GPU handle -> ID lookup cache for O(1) performance
+                for gpu_id, handle in enumerate(self.device_handles):
+                    self._gpu_handle_to_id_map[handle.value] = gpu_id
+                logging.debug(f"Built GPU handle cache: {len(self._gpu_handle_to_id_map)} devices")
             except amdsmi_exception.AmdSmiLibraryException as e:
                 if e.err_code in (amdsmi_interface.amdsmi_wrapper.AMDSMI_STATUS_NOT_INIT,
                                 amdsmi_interface.amdsmi_wrapper.AMDSMI_STATUS_DRIVER_NOT_LOADED):
@@ -93,6 +105,11 @@ class AMDSMICommands():
         if self.helpers.is_amd_hsmp_initialized():
             try:
                 self.cpu_handles = amdsmi_interface.amdsmi_get_cpusocket_handles()
+                
+                # Build CPU handle -> ID lookup cache for O(1) performance
+                for cpu_id, handle in enumerate(self.cpu_handles):
+                    self._cpu_handle_to_id_map[handle.value] = cpu_id
+                logging.debug(f"Built CPU handle cache: {len(self._cpu_handle_to_id_map)} sockets")
             except amdsmi_exception.AmdSmiLibraryException as e:
                 if e.err_code in (amdsmi_interface.amdsmi_wrapper.AMDSMI_STATUS_NOT_INIT,
                                 amdsmi_interface.amdsmi_wrapper.AMDSMI_STATUS_NO_DRV):
@@ -103,6 +120,11 @@ class AMDSMICommands():
             # core handles
             try:
                 self.core_handles = amdsmi_interface.amdsmi_get_cpucore_handles()
+                
+                # Build CORE handle -> ID lookup cache for O(1) performance
+                for core_id, handle in enumerate(self.core_handles):
+                    self._core_handle_to_id_map[handle.value] = core_id
+                logging.debug(f"Built CORE handle cache: {len(self._core_handle_to_id_map)} cores")
             except amdsmi_exception.AmdSmiLibraryException as e:
                 if e.err_code in (amdsmi_interface.amdsmi_wrapper.AMDSMI_STATUS_NOT_INIT,
                                 amdsmi_interface.amdsmi_wrapper.AMDSMI_STATUS_NO_DRV):
@@ -127,6 +149,14 @@ class AMDSMICommands():
             "dclk0": amdsmi_interface.AmdSmiClkType.DCLK0,
             "dclk1": amdsmi_interface.AmdSmiClkType.DCLK1
         }
+
+        # Pass handle caches to logger for optimized O(1) lookups
+        self.logger.set_handle_caches(
+            gpu_cache=self._gpu_handle_to_id_map,
+            cpu_cache=self._cpu_handle_to_id_map,
+            core_cache=self._core_handle_to_id_map
+        )
+        logging.debug("Passed handle caches to logger for optimized lookups")
 
         if exit_flag:
             version_args = argparse.Namespace()
